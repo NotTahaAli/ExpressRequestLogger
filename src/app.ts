@@ -26,8 +26,8 @@ export async function setupRoutes() {
     });
     
     app.get("/test", async (req, res) => {
-        await new Promise(resolve => setTimeout(resolve, 10000)); // Simulate async work
-        res.json({ message: "This is a test endpoint" });
+        logger.info("This is a test log message");
+        res.json({ message: "Test endpoint is working" });
     });
 
     app.use(()=>{

@@ -11,11 +11,17 @@ export class AppError extends Error {
 }
 
 export async function errorMiddleware(err: unknown, req: Request, res: Response, next: NextFunction) {
-    logger.error("Unhandled error:", 
-        err instanceof AppError ? { statusCode: err.statusCode, message: err.message, stack: err.stack } :
-        err instanceof Error ? { message: err.message, stack: err.stack } :
-        { error: err }
-    );
+    if (!(err instanceof AppError)) {
+        let errorMessage: string;
+        if (err instanceof Error) {
+            errorMessage = err.stack || err.message;
+        } else if (typeof err === "string") {
+            errorMessage = err;
+        } else {
+            errorMessage = JSON.stringify(err);
+        }
+        logger.error(errorMessage);
+    }
     const statusCode = err instanceof AppError ? err.statusCode : 500;
     const message = err instanceof Error ?
         err.message:

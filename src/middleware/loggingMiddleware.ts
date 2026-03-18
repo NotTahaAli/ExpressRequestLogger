@@ -1,13 +1,13 @@
 import { Response, NextFunction } from "express";
 import { RequestWithIP } from "./ipWhitelist.js";
 import { logger, requestLogger } from "../utils/logger.util.js";
-import { LogEntry } from "winston";
+import { Logform } from "winston";
 import { OutgoingHttpHeaders } from "http";
 
 export type RequestLogEntry = {
     clientIP: string;
     requestCompleted: boolean;
-    logEntries: LogEntry[];
+    logEntries: Logform.TransformableInfo[];
     request: {
         method: string;
         url: string;
@@ -49,8 +49,8 @@ export async function loggingMiddleware(req: RequestWithIP, res: Response, next:
     const body = req.body ?? JSON.stringify(req.body);
     const reqHeaders = req.headers;
     const requestTime = new Date();
-    const logEntries: LogEntry[] = [];
-    const logListener = (logEntry: LogEntry) => {
+    const logEntries: Logform.TransformableInfo[] = [];
+    const logListener = (logEntry: Logform.TransformableInfo) => {
         logEntries.push(logEntry);
     }
     logger.addListener("data", logListener);

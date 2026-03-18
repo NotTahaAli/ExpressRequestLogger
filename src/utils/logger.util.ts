@@ -1,15 +1,25 @@
 import * as winston from "winston";
 import { RequestLogEntry } from "../middleware/loggingMiddleware.js";
 
+const consoleFormat = winston.format.combine(
+    winston.format.colorize(),
+    winston.format.simple(),
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+        if ("stack" in meta) {
+            return `[${timestamp}] ${level}: ${message} - ${meta.stack}`;
+        }
+        return `[${timestamp}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ""}`;
+    })
+)
+
 export const logger = winston.createLogger({
     level: "info",
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-    ),
     transports: [
-        new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-        new winston.transports.File({ filename: "logs/combined.log" }),
+        new winston.transports.Console({
+            level: process.env.NODE_ENV === "production" ? "error" : undefined,
+            format: consoleFormat
+        }),
     ]
 });
 
@@ -25,18 +35,6 @@ export const requestLogger = winston.createLogger({
 });
 
 if (process.env.NODE_ENV !== "production") {
-    const consoleFormat = winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple(),
-        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-        winston.format.printf(({ timestamp, level, message }) => {
-            return `[${timestamp}] ${level}: ${message}`;
-        })
-    )
-    logger.add(new winston.transports.Console({
-        format: consoleFormat
-    }));
-
     requestLogger.add(new winston.transports.Console({
         format: winston.format.combine(
             winston.format.colorize(),
