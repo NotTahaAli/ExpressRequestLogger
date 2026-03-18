@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Logs Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .btn-refresh {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-refresh:hover {
+            background: #5568d3;
+        }
+
+        .btn-clear {
+            background: #ef5350;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #e53935;
+        }
+
+        .logs-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .logs-header {
+            background: #f5f5f5;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-count {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .search-box {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 300px;
+            font-size: 14px;
+        }
+
+        .logs-list {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .log-entry:hover {
+            background: #f9f9f9;
+        }
+
+        .log-entry.expanded {
+            background: #f5f5f5;
+        }
+
+        .log-summary {
+            display: grid;
+            grid-template-columns: auto auto 1fr auto auto auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .method-badge {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            width: 60px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .method-GET { background: #e3f2fd; color: #1976d2; }
+        .method-POST { background: #f3e5f5; color: #7b1fa2; }
+        .method-PUT { background: #fff3e0; color: #e65100; }
+        .method-DELETE { background: #ffebee; color: #c62828; }
+        .method-PATCH { background: #e0f2f1; color: #00695c; }
+
+        .url {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .status-2xx { background: #c8e6c9; color: #2e7d32; }
+        .status-3xx { background: #bbdefb; color: #1565c0; }
+        .status-4xx { background: #ffe0b2; color: #e65100; }
+        .status-5xx { background: #ffcccc; color: #c62828; }
+
+        .ip-badge {
+            color: #666;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .time-badge {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .log-details {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .log-entry.expanded .log-details {
+            display: block;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-content {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #333;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .filter-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+
+        .filter-tag:hover {
+            background: #5568d3;
+        }
+
+        @media (max-width: 768px) {
+            .log-summary {
+                grid-template-columns: auto 1fr;
+                gap: 10px;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Request Logs Viewer</h1>
+            <div class="header-info">
+                <span>Real-time monitoring of all HTTP requests</span>
+                <span id="last-updated">Last updated: never</span>
+            </div>
+            <div class="controls">
+                <input type="text" class="search-box" id="search-input" placeholder="Search by URL, IP, or method...">
+                <button class="btn-refresh" onclick="fetchLogs()">🔄 Refresh</button>
+                <button class="btn-clear" onclick="clearLogs()">🗑️ Clear Logs</button>
+            </div>
+        </header>
+
+        <div id="error-container"></div>
+
+        <div class="logs-container">
+            <div class="logs-header">
+                <span class="log-count">Total: <strong id="log-total">0</strong> logs</span>
+            </div>
+            <div class="logs-list" id="logs-list">
+                <div class="loading">Loading logs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allLogs = [];
+        let filteredLogs = [];
+
+        async function fetchLogs() {
+            try {
+                document.getElementById('error-container').innerHTML = '';
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                previouslyFetchedLogs = allLogs;
+                
+                if (data.error) {
+                    showError(data.error);
+                    allLogs = [];
+                } else {
+                    allLogs = data.logs || [];
+                }
+                if (previouslyFetchedLogs.length === allLogs.length) {
+                    return; // No changes, skip re-rendering
+                }
+                
+                updateLastUpdated();
+                filterAndRenderLogs();
+            } catch (error) {
+                showError('Failed to fetch logs: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('error-container').innerHTML = `<div class="error">⚠️ ${message}</div>`;
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = 'Last updated: ' + now.toLocaleTimeString();
+        }
+
+        function filterAndRenderLogs() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            filteredLogs = allLogs.map(log=>log.message).filter(log => {
+                if (typeof log !== 'object' || log === null) return false;
+                if (!log.request) return false;
+                const url = log.request.url || '';
+                const method = log.request.method || '';
+                const ip = log.clientIP || '';
+                return url.toLowerCase().includes(searchTerm) ||
+                       method.toLowerCase().includes(searchTerm) ||
+                       ip.toLowerCase().includes(searchTerm);
+            });
+
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logsList = document.getElementById('logs-list');
+            document.getElementById('log-total').textContent = filteredLogs.length;
+
+            if (filteredLogs.length === 0) {
+                logsList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>No logs found</p></div>';
+                return;
+            }
+
+            logsList.innerHTML = filteredLogs.map((log, index) => {
+                const requestCompleted = log.requestCompleted;
+                const statusCode = requestCompleted ? log.response?.statusCode || 'N/A' : 'Failed';
+                const statusClass = getStatusClass(statusCode);
+                const methodClass = 'method-' + (log.request?.method || 'GET');
+                const responseTime = getResponseTime(log);
+                
+                return `
+                    <div class="log-entry" onclick="toggleDetails(this)">
+                        <div class="log-summary">
+                            <div class="ip-badge">${log.clientIP || 'N/A'}</div>
+                            <div class="method-badge ${methodClass}">${log.request?.method || 'N/A'}</div>
+                            <div class="url">${log.request?.url || 'N/A'}</div>
+                            <div class="time-badge">${responseTime}ms</div>
+                            <div class="status-badge ${statusClass}">${statusCode}</div>
+                        </div>
+                        <div class="log-details">
+                            <div class="detail-section">
+                                <div class="detail-title">📅 Request Time</div>
+                                <div class="detail-content">${new Date(log.request?.time).toLocaleString() || 'N/A'}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-title">📤 Request Headers</div>
+                                <div class="detail-content">${JSON.stringify(log.request?.headers, null, 2) || 'N/A'}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-title">📥 Response Headers</div>
+                                <div class="detail-content">${JSON.stringify(log.response?.headers, null, 2) || 'N/A'}</div>
+                            </div>
+                            ${log.request?.body ? `<div class="detail-section">
+                                <div class="detail-title">💬 Request Body</div>
+                                <div class="detail-content">${typeof log.request.body === 'string' ? log.request.body : JSON.stringify(log.request.body, null, 2)}</div>
+                            </div>` : ''}
+                            ${log.response?.body ? `<div class="detail-section">
+                                <div class="detail-title">💬 Response Body</div>
+                                <div class="detail-content">${log.response.body}</div>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStatusClass(status) {
+            if (status >= 200 && status < 300) return 'status-2xx';
+            if (status >= 300 && status < 400) return 'status-3xx';
+            if (status >= 400 && status < 500) return 'status-4xx';
+            if (status >= 500) return 'status-5xx';
+            return 'status-5xx';
+        }
+
+        function getResponseTime(log) {
+            if (!log.request?.time || !log.response?.time) return '0';
+            const reqTime = new Date(log.request.time).getTime();
+            const respTime = new Date(log.response.time).getTime();
+            return Math.max(0, respTime - reqTime);
+        }
+
+        function toggleDetails(element) {
+            element.classList.toggle('expanded');
+        }
+
+        function clearLogs() {
+            if (confirm('Are you sure you want to clear all logs?')) {
+                fetch('/api/logs/clear', { method: 'POST' })
+                    .then(() => fetchLogs())
+                    .catch(error => showError('Failed to clear logs: ' + error.message));
+            }
+        }
+
+        document.getElementById('search-input').addEventListener('input', filterAndRenderLogs);
+
+        // Auto-refresh every 5 seconds
+        setInterval(fetchLogs, 5000);
+
+        // Initial load
+        fetchLogs();
+    </script>
+</body>
+</html>
