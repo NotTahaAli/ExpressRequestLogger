@@ -3,6 +3,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { appConfig } from "../configs/app.config.js";
 import { createIPWhitelistMiddleware } from "../middleware/ipWhitelist.js";
+import { AppError } from "../middleware/errorMiddleware.js";
+import { gzipSync } from "zlib";
 
 export const logsViewerRouter = Router();
 
@@ -10,50 +12,44 @@ if (appConfig.ipWhitelistEnabled) {
     logsViewerRouter.use(createIPWhitelistMiddleware(appConfig.allowedIPs, appConfig.nodeEnv));
 }
 
-// API endpoint to get all logs
+// API endpoint to get all log file names
 logsViewerRouter.get("/api/logs", (req, res) => {
     try {
-        const logsPath = path.join(process.cwd(), "logs", "requests.log");
-        
-        if (!fs.existsSync(logsPath)) {
-            return res.json({ logs: [], error: "No logs file found" });
+        const logsDir = path.join(process.cwd(), "logs");
+        if (!fs.existsSync(logsDir)) {
+            throw new AppError("Logs directory not found", 404);
         }
-
-        const fileContent = fs.readFileSync(logsPath, "utf-8");
-        const lines = fileContent.split("\n").filter(line => line.trim());
-        
-        const logs = lines.map((line, index) => {
-            try {
-                const parsed = JSON.parse(line);
-                return { ...parsed, id: index };
-            } catch {
-                return { raw: line, id: index };
-            }
-        });
-
-        res.json({ logs });
+        const logFiles = fs.readdirSync(logsDir).filter(file => file.endsWith(".log") || file.endsWith(".log.gz"));
+        res.json({ logs: logFiles.map(file => file.replace(/\.log(\.gz)?$/, "")) });
     } catch (error) {
-        res.status(500).json({ error: "Failed to read logs", message: String(error) });
+        if (error instanceof AppError) {
+            throw error;
+        }
+        throw new AppError(`Failed to read logs ${String(error)}`, 500);
     }
 });
 
-// Serve the HTML UI from file
-logsViewerRouter.get("/logs", (req, res) => {
-    const htmlPath = path.join(process.cwd(), "public", "logs-viewer.html");
-    res.sendFile(htmlPath);
-});
-
-// API endpoint to clear logs
-logsViewerRouter.post("/api/logs/clear", (req, res) => {
+// API endpoint to get the content of a specific log file
+logsViewerRouter.get("/api/logs/:logName", (req, res) => {
     try {
-        const logsPath = path.join(process.cwd(), "logs", "requests.log");
-        
-        if (fs.existsSync(logsPath)) {
-            fs.writeFileSync(logsPath, "");
+        const logName = req.params.logName;
+        const logsDir = path.join(process.cwd(), "logs");
+        const logFilePath = path.join(logsDir, `${logName}.log`);
+        const logFileGzPath = `${logFilePath}.gz`;
+        if (fs.existsSync(logFilePath)) {
+            const logContent = fs.readFileSync(logFilePath, "utf-8");
+            const gzippedContent = gzipSync(logContent);
+            res.type("application/gzip").send(gzippedContent);
+        } else if (fs.existsSync(logFileGzPath)) {
+            const logContent = fs.readFileSync(logFileGzPath);
+            res.type("application/gzip").send(logContent);
+        } else {
+            throw new AppError("Log file not found", 404);
         }
-
-        res.json({ success: true, message: "Logs cleared successfully" });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Failed to clear logs", message: String(error) });
+        if (error instanceof AppError) {
+            throw error;
+        }
+        throw new AppError(`Failed to read log file ${String(error)}`, 500);
     }
 });
