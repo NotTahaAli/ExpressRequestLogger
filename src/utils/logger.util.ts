@@ -1,4 +1,5 @@
 import * as winston from "winston";
+import "winston-daily-rotate-file";
 import { RequestLogEntry } from "../middleware/loggingMiddleware.js";
 
 const consoleFormat = winston.format.combine(
@@ -12,6 +13,23 @@ const consoleFormat = winston.format.combine(
         return `[${timestamp}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ""}`;
     })
 )
+
+const requestTransport = new winston.transports.DailyRotateFile({
+    filename: "requests-%DATE%",
+    extension: ".log",
+    dirname: "logs",
+    datePattern: "YYYY-MM-DD",
+    maxSize: "20m",
+    maxFiles: "30d",
+    zippedArchive: true,
+    auditFile: "logs/request-audit.json",
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    )
+})
+
+
 
 export const logger = winston.createLogger({
     level: "info",
@@ -30,7 +48,7 @@ export const requestLogger = winston.createLogger({
         winston.format.json()
     ),
     transports: [
-        new winston.transports.File({ filename: "logs/requests.log" }),
+        requestTransport,
     ]
 });
 
