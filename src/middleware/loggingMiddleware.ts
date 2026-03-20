@@ -1,95 +1,36 @@
-import { Response, NextFunction } from "express";
-import { RequestWithIP } from "./ipWhitelist.js";
-import { logger, requestLogger } from "../utils/logger.util.js";
-import { Logform } from "winston";
-import { OutgoingHttpHeaders } from "http";
+import { appConfig } from "../configs/app.config.js"
+import { RequestLogger, RequestLogLocation } from "../utils/logger.creator.js"
+import { logger } from "../utils/logger.util.js"
 
-export type RequestLogEntry = {
-    clientIP: string;
-    requestCompleted: boolean;
-    logEntries: Logform.TransformableInfo[];
-    request: {
-        method: string;
-        url: string;
-        headers: Record<string, string | string[] | undefined>;
-        body: unknown;
-        time: Date;
-    };
-    response: {
-        statusCode: number;
-        headersSent: boolean;
-        headers: OutgoingHttpHeaders;
-        body: undefined | string;
-        time: Date;
+const logLocations: RequestLogLocation<true, true, true>[] = [
+    {
+        type: "file",
+        filename: "requests-%DATE%",
+        dirname: "logs",
+        extension: ".log",
+        datePattern: "YYYY-MM-DD",
+        zippedArchive: true,
+        maxSize: "30m",
+        maxFiles: "14d",
+        level: "info",
+        auditFile: "logs/requests-audit.log",
+        json: true
     }
-};
-
-function getString(input: unknown): string {
-    if (typeof input === "string") {
-        return input;
-    }
-    if (Buffer.isBuffer(input)) {
-        return input.toString("utf-8");
-    }
-    return JSON.stringify(input);
+]
+if (appConfig.nodeEnv === "development") {
+    logLocations.push({ type: "console" })
 }
 
-export async function loggingMiddleware(req: RequestWithIP, res: Response, next: NextFunction) {
-    let respBody: undefined | string = undefined;
-    const oldSend = res.send;
-    res.send = function (body: unknown) {
-        if (respBody === undefined) {
-            respBody = getString(body);
-        } else {
-            respBody += getString(body);
-        }
-        return oldSend.call(this, body);
+const reqLogger = new RequestLogger({
+    logHeaders: true,
+    logRequestBody: true,
+    logResponseBody: true,
+    logLocations: logLocations,
+    trackedLoggers: [console, logger],
+    loggingPreCondition: (req) => {
+        if (req.path.endsWith("/health")) return false;
+        return true;
     }
-    const clientIP = req.clientIP || req.ip || "unknown";
-    const body = req.body ?? JSON.stringify(req.body);
-    const reqHeaders = req.headers;
-    const requestTime = new Date();
-    const logEntries: Logform.TransformableInfo[] = [];
-    const logListener = (logEntry: Logform.TransformableInfo) => {
-        logEntries.push(logEntry);
-    }
-    logger.addListener("data", logListener);
-    const responseEnded = new Promise<boolean>((resolve) => {
-        res.on("finish", () => {
-            resolve(true);
-        });
-        res.on("close", () => {
-            resolve(false);
-        });
-    });
-    next();
-    const requestCompleted = await responseEnded;
-    logger.removeListener("data", logListener);
-    const responseTime = new Date();
-    const respHeaders = res.getHeaders();
+})
 
-    const logEntry: RequestLogEntry = {
-        clientIP,
-        requestCompleted,
-        logEntries,
-        request: {
-            method: req.method,
-            url: req.originalUrl || req.url,
-            headers: reqHeaders,
-            body,
-            time: requestTime,
-        },
-        response: {
-            statusCode: res.statusCode,
-            headersSent: res.headersSent,
-            headers: respHeaders,
-            body: respBody,
-            time: responseTime,
-        },
-    };
-    if (!requestCompleted) {
-        requestLogger.warn(logEntry);
-    } else {
-        requestLogger.info(logEntry);
-    }
-}
+export const loggingMiddleware = reqLogger.loggingMiddleware

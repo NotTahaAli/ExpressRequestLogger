@@ -26,8 +26,13 @@ export async function setupRoutes() {
     });
     
     app.get("/test", async (req, res) => {
+        console.log("This should be logged too")
         logger.info("This is a test log message");
         res.json({ message: "Test endpoint is working" });
+    });
+
+    app.get("/error", async () => {
+        throw new Error("This is a test error");
     });
 
     app.use(()=>{
