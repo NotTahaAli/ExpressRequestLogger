@@ -16,9 +16,7 @@ export async function setupRoutes() {
         app.set("trust proxy", true);
     }
     app.use(ipExtractorMiddleware);
-    // Important: Place loggingMiddleware after reverse proxy and IP extraction middlewares to ensure correct client IP is logged
-    // Important: Place logsViewerRouter before loggingMiddleware to ensure logs for logs viewer access are not logged (to avoid infinite logging loop)
-    app.use(logsViewerRouter);
+    app.use('/log-viewer',logsViewerRouter);
     app.use(loggingMiddleware);
 
     app.get("/health", (req, res) => {
